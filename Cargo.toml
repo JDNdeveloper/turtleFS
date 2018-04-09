@@ -1,0 +1,6 @@
+[package]
+name = "file_server"
+version = "0.1.0"
+authors = ["Jayden Navarro <jdndeveloper@gmail.com>"]
+
+[dependencies]
