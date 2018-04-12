@@ -23,8 +23,7 @@ fn main() {
 
             let handle_conn = io::read_to_end( reader, buf )
                 .and_then( | ( _, buf ) | {
-                    let file_name = std::str::from_utf8(
-                        &buf[ .. ] ).unwrap();
+                    let file_name = std::str::from_utf8( &buf[ .. ] ).unwrap();
 
                     let path = Path::new( file_name );
                     let mut file_contents = String::new();
