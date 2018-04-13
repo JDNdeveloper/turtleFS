@@ -55,7 +55,8 @@ fn main() {
                             io::write_all( writer, format!( "{}\n", why ) )
                         },
                         Ok( _ ) => {
-                            println!( "{}: sending file contents of {}", peer_addr, file_name );
+                            println!( "{}: sending file contents of {}",
+                                           peer_addr, file_name );
                             io::write_all( writer, file_contents )
                         },
                     }
