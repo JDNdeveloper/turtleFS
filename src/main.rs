@@ -4,12 +4,13 @@ extern crate regex;
 use regex::Regex;
 use std::fs::File;
 use std::path::Path;
+use std::io::Seek;
 use tokio::prelude::*;
 use tokio::io;
 use tokio::net::TcpListener;
 
 // operation result in the form: Ok( message, info ), Err( why )
-type OperResult = Result< ( String, String ), String >;
+type OperResult = Result< ( Vec< u8 >, String ), String >;
 
 fn main() {
     let address = "127.0.0.1:2345".parse().unwrap();
@@ -65,14 +66,15 @@ fn main() {
                     // and log info
                     let send_and_log = | oper_result: OperResult | {
                         match oper_result {
-                            Err( why ) => {
-                                eprintln!( "{}: {}", peer_addr, why );
-                                io::write_all( writer, format!( "{}\n", why ) )
-                            },
                             Ok( ( result, info ) ) => {
                                 println!( "{}: {}",
                                            peer_addr, info );
                                 io::write_all( writer, result )
+                            },
+                            Err( why ) => {
+                                eprintln!( "{}: {}", peer_addr, why );
+                                io::write_all( writer,
+                                               format!( "{}\n", why ).into_bytes() )
                             },
                         }  
                     };
@@ -80,37 +82,32 @@ fn main() {
                     // open file and read from it
                     let file_read_func = | file_name, start_offset, end_offset | {
                         let path = Path::new( file_name );
+                        let length: usize = end_offset as usize -
+                            start_offset as usize;
                         match File::open( &file_name ) {
                             Err( why ) => Err( format!(
                                 "couldn't open {}: {}", path.display(),
                                 why ) ),
                             Ok( mut file ) => {
-                                // read file contents into string
-                                let mut file_contents = String::new();
+                                let mut file_buf = vec![ 0u8; length ];
+
+                                file.seek( std::io::SeekFrom::Start(
+                                    start_offset as u64 ) ).unwrap();
+                                
                                 let file_read_oper =
-                                    match file.read_to_string( &mut file_contents ) {
-                                        Err( why ) => Err( format!(
-                                            "couldn't read {}: {}", path.display(),
-                                            why ) ),
+                                    match file.read_exact( &mut file_buf ) {
                                         Ok( _ ) => Ok( () ),
+                                        Err( why ) => Err( format!(
+                                            "could not read {}: {}", path.display(),
+                                            why ) ),
                                     };
-                                // handle start offset
-                                file_contents = file_contents
-                                    .chars()
-                                    .skip( start_offset as usize )
-                                    .collect();
-                                // handle end offset
-                                file_contents = file_contents
-                                    .chars()
-                                    .take( end_offset as usize -
-                                           start_offset as usize )
-                                    .collect();
+
                                 match file_read_oper {
-                                    Err( why ) => Err( why ),
-                                    Ok( _ ) => Ok( ( file_contents, format!(
+                                    Ok( _ ) => Ok( ( file_buf, format!(
                                         "sending file contents of {}, \
                                          start offset {}, end offset {}",
                                         file_name, start_offset, end_offset ) ) ),
+                                    Err( why ) => Err( why ),
                                 }
                             },
                         }
@@ -119,7 +116,7 @@ fn main() {
                     let file_length_func = | file_name | {
                         match std::fs::metadata( file_name ) {
                             Err( why ) => no_info_err( file_name, why ),
-                            Ok( m ) => Ok( ( format!( "{}", m.len() ),
+                            Ok( m ) => Ok( ( format!( "{}", m.len() ).into_bytes(),
                                              format!( "sending file length of {}: {}",
                                                        file_name, m.len() ) ) )
                         }
