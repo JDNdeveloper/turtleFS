@@ -25,6 +25,9 @@ fn main() {
         .for_each( | socket | {
             let peer_addr = socket.peer_addr().unwrap();
 
+            // requests must be in the form: filename:(action,arg1,arg2,...)
+            let request_re = Regex::new( r"^([^:]+):\(([^()]+)\)$" ).unwrap();
+
             // split socket into reader and writer
             let ( reader, writer ) = socket.split();
 
@@ -84,10 +87,8 @@ fn main() {
                         let path = Path::new( file_name );
                         let length: usize = end_offset as usize -
                             start_offset as usize;
+
                         match File::open( &file_name ) {
-                            Err( why ) => Err( format!(
-                                "couldn't open {}: {}", path.display(),
-                                why ) ),
                             Ok( mut file ) => {
                                 let mut file_buf = vec![ 0u8; length ];
 
@@ -110,15 +111,18 @@ fn main() {
                                     Err( why ) => Err( why ),
                                 }
                             },
+                            Err( why ) => Err( format!(
+                                "couldn't open {}: {}", path.display(),
+                                why ) ),
                         }
                     };
                     
                     let file_length_func = | file_name | {
                         match std::fs::metadata( file_name ) {
-                            Err( why ) => no_info_err( file_name, why ),
                             Ok( m ) => Ok( ( format!( "{}", m.len() ).into_bytes(),
                                              format!( "sending file length of {}: {}",
-                                                       file_name, m.len() ) ) )
+                                                       file_name, m.len() ) ) ),
+                            Err( why ) => no_info_err( file_name, why ),
                         }
                     };
 
@@ -126,8 +130,6 @@ fn main() {
 
                     let request_contents = std::str::from_utf8( &buf[ .. ] ).unwrap();
                     
-                    // requests must be in the form: filename:(action,arg1,arg2,...)
-                    let request_re = Regex::new( r"^([^:]+):\(([^()]+)\)$" ).unwrap();
                     let captures = match request_re.captures( request_contents ) {
                         Some( m ) => m,
                         None => {
