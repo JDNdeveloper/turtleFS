@@ -5,3 +5,4 @@ authors = ["Jayden Navarro <jdndeveloper@gmail.com>"]
 
 [dependencies]
 tokio = "0.1.5"
+regex = "0.2.10"
