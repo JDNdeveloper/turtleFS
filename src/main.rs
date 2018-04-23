@@ -47,7 +47,7 @@ fn main() {
                             num_args, action ) )
                     };
 
-                    let num_arg_err = | n, why | {
+                    let num_arg_err = | why, n | {
                         Err( format!(
                             "could not convert \"{}\" to unsigned integer: {}",
                             n, why ) )
@@ -57,12 +57,12 @@ fn main() {
                         Err( format!( "unrecognized action: {}", action ) )
                     };
 
-                    let no_info_err = | file_name, why | {
+                    let no_info_err = | why, file_name | {
                         Err( format!(
                             "could not retrieve file metadata for {}: {}",
                             file_name, why ) )
                     };
-                    
+
                     /* OPERATION FUNCTIONS */
                     
                     // write file contents (or error) into writer socket
@@ -89,6 +89,31 @@ fn main() {
                                     Some( v ) => v,
                                     None => {
                                         return send_and_log( $e );
+                                    },
+                                }
+                            }
+                        };
+                    }
+
+                    macro_rules! unwrap_result {
+                        ( $r:expr, $e:expr ) => {
+                            {
+                                match $r {
+                                    Ok( v ) => v,
+                                    Err( why ) => {
+                                        return send_and_log(
+                                            $e( why ) );
+                                    },
+                                }
+                            }
+                        };
+                        ( $r:expr, $e:expr, $( $a:expr ),* ) => {
+                            {
+                                match $r {
+                                    Ok( v ) => v,
+                                    Err( why ) => {
+                                        return send_and_log(
+                                            $e( why, $( $a ),* ) );
                                     },
                                 }
                             }
@@ -135,7 +160,7 @@ fn main() {
                             Ok( m ) => Ok( ( format!( "{}", m.len() ).into_bytes(),
                                              format!( "sending file length of {}: {}",
                                                        file_name, m.len() ) ) ),
-                            Err( why ) => no_info_err( file_name, why ),
+                            Err( why ) => no_info_err( why, file_name ),
                         }
                     };
 
@@ -164,30 +189,18 @@ fn main() {
 
                     // we need file length for a couple of different things,
                     // so we go ahead and retrieve that now
-                    let file_length = match std::fs::metadata( file_name ) {
-                        Ok( m ) => m.len() as u32,
-                        Err( why ) => {
-                            return send_and_log( no_info_err(
-                                file_name, why ) );
-                        },
-                    };
-                    
-                    /* EXECUTE AND RETURN RESPONSE */
+                    let file_length = unwrap_result!(
+                        std::fs::metadata( file_name ), no_info_err, file_name )
+                        .len() as u32;
 
                     if action == "READ" {
                         let mut start_offset = 0;
                         let mut end_offset = file_length;
                         if action_args.len() >= 1 {
                             let start_offset_str = action_args[ 0 ];
-                            start_offset =
-                                match start_offset_str.parse::< u32 >() {
-                                    Ok( n ) => n,
-                                    Err( why ) => {
-                                        return send_and_log( num_arg_err(
-                                            String::from( start_offset_str ),
-                                            why ) );
-                                    },
-                                };
+                            start_offset = unwrap_result!(
+                                start_offset_str.parse::< u32 >(), num_arg_err,
+                                String::from( start_offset_str ) );
                             if start_offset >= file_length {
                                 return send_and_log( Err( format!(
                                     "start offset ({}) must be: \
@@ -197,15 +210,9 @@ fn main() {
                         }
                         if action_args.len() >= 2 {
                             let end_offset_str = action_args[ 1 ];
-                            end_offset =
-                                match end_offset_str.parse::< u32 >() {
-                                    Ok( n ) => n,
-                                    Err( why ) => {
-                                        return send_and_log( num_arg_err(
-                                            String::from( end_offset_str ),
-                                            why ) );
-                                    },
-                                };
+                            end_offset = unwrap_result!(
+                                end_offset_str.parse::< u32 >(), num_arg_err,
+                                String::from( end_offset_str ) );
                             if end_offset < 1 || end_offset > file_length ||
                                 end_offset <= start_offset {
                                 return send_and_log( Err( format!(
