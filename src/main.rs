@@ -82,6 +82,19 @@ fn main() {
                         }  
                     };
 
+                    macro_rules! unwrap_option {
+                        ( $o:expr, $e:expr ) => {
+                            {
+                                match $o {
+                                    Some( v ) => v,
+                                    None => {
+                                        return send_and_log( $e );
+                                    },
+                                }
+                            }
+                        };
+                    }
+
                     // open file and read from it
                     let file_read_func = | file_name, start_offset, end_offset | {
                         let path = Path::new( file_name );
@@ -129,30 +142,18 @@ fn main() {
                     /* REQUEST PARSING */
 
                     let request_contents = std::str::from_utf8( &buf[ .. ] ).unwrap();
-                    
-                    let captures = match request_re.captures( request_contents ) {
-                        Some( m ) => m,
-                        None => {
-                            return send_and_log( format_err );
-                        },
-                    };
-                    
-                    let file_name = match captures.get( 1 ) {
-                        Some( m ) => m.as_str(),
-                        None => {
-                            return send_and_log( format_err );
-                        },
-                    };
 
-                    let actions_vec = match captures.get( 2 ) {
-                        Some( m ) => {
-                            let mut action_str = m.as_str();
-                            action_str.split( "," ).collect::< Vec< &str > >()
-                        },
-                        None => {
-                            return send_and_log( format_err );
-                        },
-                    };
+                    let captures = unwrap_option!(
+                        request_re.captures( request_contents ), format_err );
+                    
+                    let file_name = unwrap_option!(
+                        captures.get( 1 ), format_err ).as_str();
+
+                    let actions_vec = unwrap_option!(
+                        captures.get( 2 ), format_err )
+                        .as_str()
+                        .split( "," )
+                        .collect::< Vec< &str > >();
 
                     if actions_vec.len() == 0 {
                         return send_and_log( format_err );
