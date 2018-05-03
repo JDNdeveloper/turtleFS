@@ -7,6 +7,10 @@ authors = ["Jayden Navarro <jdndeveloper@gmail.com>"]
 name = "server"
 path = "src/server/main.rs"
 
+[[bin]]
+name = "client"
+path = "src/client/main.rs"
+
 [dependencies]
 tokio = "0.1.5"
 regex = "0.2.10"
