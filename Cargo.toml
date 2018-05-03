@@ -3,6 +3,10 @@ name = "file_server"
 version = "0.1.0"
 authors = ["Jayden Navarro <jdndeveloper@gmail.com>"]
 
+[[bin]]
+name = "server"
+path = "src/server/main.rs"
+
 [dependencies]
 tokio = "0.1.5"
 regex = "0.2.10"
