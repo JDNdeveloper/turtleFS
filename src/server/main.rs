@@ -72,12 +72,16 @@ fn main() {
                             Ok( ( result, info ) ) => {
                                 println!( "{}: {}",
                                            peer_addr, info );
-                                io::write_all( writer, result )
+                                let mut message: Vec<u8> = vec![ 0 ];
+                                message.extend_from_slice( &result );
+                                io::write_all( writer, message )
                             },
                             Err( why ) => {
                                 eprintln!( "{}: {}", peer_addr, why );
-                                io::write_all( writer,
-                                               format!( "{}\n", why ).into_bytes() )
+                                let mut message: Vec<u8> = vec![ 1 ];
+                                message.extend_from_slice(
+                                    &format!( "{}\n", why ).into_bytes() );
+                                io::write_all( writer, message )
                             },
                         }  
                     };
