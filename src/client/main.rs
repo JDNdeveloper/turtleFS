@@ -87,10 +87,10 @@ fn request_file<'a>( node: &Node, file_name: &String,
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let file_name = &args[1];
+    let file_name = &args[ 1 ];
 
-    // retrieve /file_store from one of the known nodes
-    // (stored in /etc/rustfs/nodes.yaml)
+    // retrieve /file_store.yaml from one of the known nodes
+    // (stored in /usr/local/rustfs/nodes.yaml)
     // TODO
     
     // find nodes that have this file

@@ -5,6 +5,7 @@ use regex::Regex;
 use std::fs::File;
 use std::path::Path;
 use std::io::Seek;
+use std::env;
 use tokio::prelude::*;
 use tokio::io;
 use tokio::net::TcpListener;
@@ -13,7 +14,9 @@ use tokio::net::TcpListener;
 type OperResult = Result< ( Vec< u8 >, String ), String >;
 
 fn main() {
-    let address = "127.0.0.1:2345".parse().unwrap();
+    let args: Vec<String> = env::args().collect();
+    let address = args[ 1 ].parse().unwrap();
+
     let listener = TcpListener::bind( &address )
         .expect( "cannot bind TCP listener" );
 
