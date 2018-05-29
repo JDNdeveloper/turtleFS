@@ -28,8 +28,11 @@ fn main() {
         .for_each( | socket | {
             let peer_addr = socket.peer_addr().unwrap();
 
-            // requests must be in the form: filename:(action,arg1,arg2,...)
-            let request_re = Regex::new( r"^([^:]+):\(([^()]+)\)$" ).unwrap();
+            // requests must be in the form: /filename:(action,arg1,arg2,...)
+            let request_re = Regex::new( r"^(/[^:]+):\(([^()]+)\)$" ).unwrap();
+
+            // allocated for the filename
+            let mut file_name: String = "/usr/local/rustfs/store".to_owned();
 
             // split socket into reader and writer
             let ( reader, writer ) = socket.split();
@@ -42,7 +45,7 @@ fn main() {
                     
                     let format_err = Err( format!(
                         "invalid request, \
-                         correct format: filename:(action,arg1,arg2,...)" ) );
+                         correct format: /filename:(action,arg1,arg2,...)" ) );
 
                     let too_many_args_err = | num_args, action | {
                         Err( format!(
@@ -177,9 +180,9 @@ fn main() {
 
                     let captures = unwrap_option!(
                         request_re.captures( request_contents ), format_err );
-                    
-                    let file_name = unwrap_option!(
-                        captures.get( 1 ), format_err ).as_str();
+
+                    file_name.push_str( unwrap_option!( captures.get( 1 ), format_err ).as_str() );
+                    let file_name: &str = &file_name[ .. ];
 
                     let actions_vec = unwrap_option!(
                         captures.get( 2 ), format_err )
