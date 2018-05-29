@@ -97,7 +97,7 @@ fn main() {
     // TODO
     // TODO return error if no nodes have the file
     let active_nodes = &mut Vec::new();
-    for _ in 0..13 {
+    for _ in 0..42 {
         active_nodes.push(
             Node { ip: "127.0.0.1".to_string(), port: "2345".to_string() } );
     }
@@ -122,7 +122,7 @@ fn main() {
     for node in active_nodes {
         end_offset += chunk_size;
         if end_offset > file_length {
-            continue;
+            break;
         }
         if count == num_nodes - 1 {
             end_offset = file_length;
