@@ -162,6 +162,7 @@ fn main() {
     // (stored in /usr/local/rustfs/nodes.yaml)
     let root_nodes = retrieve_root_nodes();
     let response_buffer = &mut Vec::new();
+    // TODO randomly select the node to get the file from
     let file_store = request_whole_file( &root_nodes[ 0 ],
                                           &"/file_store.yaml".to_string(),
                                           response_buffer ).unwrap();
