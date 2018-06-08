@@ -1,5 +1,6 @@
 extern crate rand;
 extern crate yaml_rust;
+extern crate crc;
 
 use std::io::prelude::*;
 use std::io::{self, Write};
@@ -9,8 +10,8 @@ use std::fmt;
 use std::fs::File;
 use rand::Rng;
 use std::str;
-use yaml_rust::YamlLoader;
-use yaml_rust::yaml;
+use yaml_rust::{Yaml,YamlLoader,yaml};
+use crc::crc32;
 
 #[ derive( Clone, Debug ) ]
 struct Node {
@@ -57,10 +58,21 @@ fn retrieve_root_nodes() -> Vec< Node > {
 }
 
 fn retrieve_active_nodes( file_name: &str, file_store_map: &yaml::Hash )
-                          -> Vec< Node > {
+                          -> ( u32, Vec< Node > ) {
     let mut active_nodes = Vec::new();
-    for ( key_file, val_node_list ) in file_store_map {
+    let mut checksum = 0;
+    for ( key_file, key_info ) in file_store_map {
         if key_file.as_str().unwrap() == file_name {
+            let key_info_hash = key_info.as_hash().unwrap();
+            
+            // get checksum
+            let checksum_str = key_info_hash.get(
+                &Yaml::from_str( "checksum" ) ).unwrap().as_str().unwrap();
+            checksum = u32::from_str_radix( checksum_str, 16 ).unwrap();
+
+            // get nodes
+            let val_node_list = key_info_hash.get(
+                &Yaml::from_str( "nodes" ) ).unwrap();
             for node_string in val_node_list.as_vec().unwrap() {
                 let node_info: Vec< &str > =
                     node_string.as_str().unwrap().split( ":" ).collect();
@@ -73,7 +85,7 @@ fn retrieve_active_nodes( file_name: &str, file_store_map: &yaml::Hash )
     if active_nodes.len() == 0 {
         panic!( "ERROR: no active nodes for file {}", file_name );
     }
-    return active_nodes;
+    return ( checksum, active_nodes );
 }
 
 fn verify_response( response: Response ) {
@@ -172,7 +184,8 @@ fn main() {
     let file_store_map = file_store_yaml[ 0 ].as_hash().unwrap();
     
     // find nodes that have this file
-    let active_nodes = retrieve_active_nodes( file_name, file_store_map );
+    let ( checksum, active_nodes ) =
+        retrieve_active_nodes( file_name, file_store_map );
 
     // get the file length randomly from one of the nodes
     let rand_nodes = active_nodes.clone();
@@ -210,6 +223,11 @@ fn main() {
         file_contents.extend_from_slice( file_chunk );
         start_offset = end_offset;
         count += 1;
+    }
+
+    // verify file checksum matches the one in file store
+    if checksum != crc32::checksum_ieee( file_contents ) {
+        panic!( "File does not match checksum from file_store.yaml" );
     }
 
     // retry on failed chunks from different nodes
