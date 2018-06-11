@@ -88,12 +88,6 @@ fn retrieve_active_nodes( file_name: &str, file_store_map: &yaml::Hash )
     return ( checksum, active_nodes );
 }
 
-fn verify_response( response: Response ) {
-    if response.status != 0 {
-        panic!( "ERROR: {}", str::from_utf8( response.message ).unwrap() );
-    }
-}
-
 fn perform_request<'a>( request: Request, response_buffer: &'a mut Vec<u8> )
                         -> Response<'a> {
     let mut stream = match TcpStream::connect( request.node.to_string() ) {
@@ -121,48 +115,80 @@ fn perform_request<'a>( request: Request, response_buffer: &'a mut Vec<u8> )
     }
 }
 
-fn request_length( node: &Node, file_name: &String ) -> u16 {
-    let request = Request {
-        node: node,
-        request_string: format!( "{}:(LENGTH)", file_name ),
-    };
-    let response_buffer = &mut Vec::new();
-    let response = perform_request( request, response_buffer );
-    verify_response( response.clone() );
+fn perform_request_with_retry<'a>( request_string: &String,
+                                   primary_node_option: Option< &Node >,
+                                   backup_nodes: Vec< Node >,
+                                   response_buffer: &'a mut Vec< u8 > )
+                                   -> Option< Response<'a> > {
+    let mut random_backup_nodes = backup_nodes.clone();
+    let random_backup_nodes_slice = random_backup_nodes.as_mut_slice();
+    rand::thread_rng().shuffle( random_backup_nodes_slice );
 
-    str::from_utf8( response.message ).unwrap().parse::<u16>().unwrap()
+    let mut nodes: Vec< Node > = match primary_node_option {
+        Some( primary_node ) => vec![ primary_node.clone() ],
+        None => Vec::new(),
+    };
+    nodes.extend_from_slice( random_backup_nodes_slice );
+    
+    for node in nodes.iter() {
+        let request = Request {
+            node: node,
+            request_string: request_string.clone(),
+        };
+        let temp_response_buffer = &mut Vec::new();
+        let temp_response = perform_request( request, temp_response_buffer );
+        if temp_response.status == 0 {
+            response_buffer.clear();
+            response_buffer.extend_from_slice( temp_response.message );
+            return Some( Response {
+                status: 0,
+                message: &response_buffer[ 0.. ],
+            } );
+        }
+    }
+    None
 }
 
-fn request_whole_file<'a>( node: &Node, file_name: &String,
-                           response_buffer: &'a mut Vec<u8> )
-                           -> Option< &'a [u8] > {
-    let request = Request {
-        node: node,
-        request_string: format!( "{}:(READ)", file_name ),
-    };
-    let response = perform_request( request, response_buffer );
-
-    if response.status == 0 {
-        Some( response.message )
-    } else {
-        None
+fn request_length( nodes: Vec< Node >, file_name: &String ) -> u16 {
+    let response_buffer = &mut Vec::new();
+    let response_option = perform_request_with_retry(
+        &format!( "{}:(LENGTH)", file_name ), None, nodes, response_buffer );
+    
+    match response_option {
+        Some( response ) => {
+            str::from_utf8( response.message ).unwrap().parse::<u16>().unwrap()
+        },
+        None => panic!( "Could not retrieve file length for {}", file_name ),
     }
 }
 
-fn request_file<'a>( node: &Node, file_name: &String,
-                 start_offset: u16, end_offset: u16,
-                 response_buffer: &'a mut Vec<u8> ) -> Option< &'a [u8] > {
-    let request = Request {
-        node: node,
-        request_string: format!( "{}:(READ,{},{})", file_name,
-                                      start_offset, end_offset ),
-    };
-    let response = perform_request( request, response_buffer );
+fn request_whole_file<'a>( nodes: Vec< Node >, file_name: &String,
+                           response_buffer: &'a mut Vec<u8> )
+                           -> &'a [u8] {
+    let response_option = perform_request_with_retry(
+        &format!( "{}:(READ)", file_name ), None, nodes, response_buffer );
+    
+    match response_option {
+        Some( response ) => {
+            response.message
+        },
+        None => panic!( "Could not retrieve file contents for {}", file_name ),
+    }
+}
 
-    if response.status == 0 {
-        Some( response.message )
-    } else {
-        None
+fn request_file<'a>( primary_node: &Node, backup_nodes: Vec< Node >,
+                     file_name: &String, start_offset: u16, end_offset: u16,
+                     response_buffer: &'a mut Vec<u8> ) -> &'a [u8] {
+    let response_option = perform_request_with_retry(
+        &format!( "{}:(READ,{},{})", file_name, start_offset, end_offset ),
+        Some( primary_node ), backup_nodes, response_buffer );
+    
+    match response_option {
+        Some( response ) => {
+            response.message
+        },
+        None => panic!( "Could not retrieve file contents between {} and {} for {}",
+                         start_offset, end_offset, file_name ),
     }
 }
 
@@ -174,11 +200,11 @@ fn main() {
     // (stored in /usr/local/rustfs/nodes.yaml)
     let root_nodes = retrieve_root_nodes();
     let response_buffer = &mut Vec::new();
-    // TODO randomly select the node to get the file from
-    let file_store = request_whole_file( &root_nodes[ 0 ],
-                                          &"/file_store.yaml".to_string(),
-                                          response_buffer ).unwrap();
-    // TODO retry to get file on other nodes if fails
+    let file_store = request_whole_file( root_nodes.clone(),
+                                         &"/file_store.yaml".to_string(),
+                                         response_buffer );
+
+    // extract the file store map
     let file_store_string = str::from_utf8( file_store ).unwrap();
     let file_store_yaml = YamlLoader::load_from_str( &file_store_string ).unwrap();
     let file_store_map = file_store_yaml[ 0 ].as_hash().unwrap();
@@ -187,11 +213,8 @@ fn main() {
     let ( checksum, active_nodes ) =
         retrieve_active_nodes( file_name, file_store_map );
 
-    // get the file length randomly from one of the nodes
-    let rand_nodes = active_nodes.clone();
-    let node = rand::thread_rng().choose( &rand_nodes ).unwrap();
-    let file_length = request_length( node, file_name );
-    // TODO retry if this fails
+    // retrieve file length
+    let file_length = request_length( active_nodes.clone(), file_name );
 
     // if there are more active nodes than bytes in the file, need to randomly select
     // file_length number of nodes to use, chunk size will be one byte
@@ -205,7 +228,7 @@ fn main() {
     let mut start_offset = 0;
     let mut end_offset = 0;
     let mut count = 0;
-    for node in active_nodes {
+    for node in active_nodes.clone() {
         end_offset += chunk_size;
         if end_offset > file_length {
             break;
@@ -214,12 +237,9 @@ fn main() {
             end_offset = file_length;
         }
         let response_buffer = &mut Vec::new();
-        let file_chunk_option = request_file( &node, file_name, start_offset, end_offset,
-                                              response_buffer );
-        let file_chunk = match file_chunk_option {
-            Some( file_chunk ) => file_chunk,
-            None => panic!( "Chunk failed, need to retry" ), // TODO
-        };
+        let file_chunk = request_file( &node, active_nodes.clone(), file_name,
+                                        start_offset, end_offset,
+                                        response_buffer );
         file_contents.extend_from_slice( file_chunk );
         start_offset = end_offset;
         count += 1;
@@ -229,9 +249,6 @@ fn main() {
     if checksum != crc32::checksum_ieee( file_contents ) {
         panic!( "File does not match checksum from file_store.yaml" );
     }
-
-    // retry on failed chunks from different nodes
-    // TODO
 
     // output the file to stdout
     io::stdout().write( file_contents ).unwrap();
