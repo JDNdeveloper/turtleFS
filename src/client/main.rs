@@ -176,7 +176,7 @@ fn request_whole_file<'a>( nodes: Vec< Node >, file_name: &String,
     }
 }
 
-fn request_file<'a>( primary_node: &Node, backup_nodes: Vec< Node >,
+fn request_file_chunk<'a>( primary_node: &Node, backup_nodes: Vec< Node >,
                      file_name: &String, start_offset: u16, end_offset: u16,
                      response_buffer: &'a mut Vec<u8> ) -> &'a [u8] {
     let response_option = perform_request_with_retry(
@@ -192,12 +192,38 @@ fn request_file<'a>( primary_node: &Node, backup_nodes: Vec< Node >,
     }
 }
 
+// split the file into even chunks based on how many nodes there are,
+// then request the file chunks from the nodes
+fn request_file_distributed( nodes: Vec< Node >, file_name: &String,
+                             file_length: u16, file_contents: &mut Vec< u8 > ) {
+    let num_nodes = nodes.len() as u16;
+    let chunk_size: u16 = std::cmp::max( file_length / num_nodes, 1 );
+    let mut start_offset = 0;
+    let mut end_offset = 0;
+    let mut count = 0;
+    for node in nodes.clone() {
+        end_offset += chunk_size;
+        if end_offset > file_length {
+            break;
+        }
+        if count == num_nodes - 1 {
+            end_offset = file_length;
+        }
+        let response_buffer = &mut Vec::new();
+        let file_chunk = request_file_chunk( &node, nodes.clone(), file_name,
+                                              start_offset, end_offset,
+                                              response_buffer );
+        file_contents.extend_from_slice( file_chunk );
+        start_offset = end_offset;
+        count += 1;
+    }
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     let file_name = &args[ 1 ];
 
-    // retrieve /file_store.yaml from one of the known nodes
-    // (stored in /usr/local/rustfs/nodes.yaml)
+    // retrieve /file_store.yaml
     let root_nodes = retrieve_root_nodes();
     let response_buffer = &mut Vec::new();
     let file_store = request_whole_file( root_nodes.clone(),
@@ -216,34 +242,10 @@ fn main() {
     // retrieve file length
     let file_length = request_length( active_nodes.clone(), file_name );
 
-    // if there are more active nodes than bytes in the file, need to randomly select
-    // file_length number of nodes to use, chunk size will be one byte
-    // TODO
-
-    // split the file into even chunks based on how many nodes there are,
-    // then request the file chunks from the nodes
+    // retrieve the file
     let file_contents = &mut Vec::new();
-    let num_nodes = active_nodes.len() as u16;
-    let chunk_size: u16 = std::cmp::max( file_length / num_nodes, 1 );
-    let mut start_offset = 0;
-    let mut end_offset = 0;
-    let mut count = 0;
-    for node in active_nodes.clone() {
-        end_offset += chunk_size;
-        if end_offset > file_length {
-            break;
-        }
-        if count == num_nodes - 1 {
-            end_offset = file_length;
-        }
-        let response_buffer = &mut Vec::new();
-        let file_chunk = request_file( &node, active_nodes.clone(), file_name,
-                                        start_offset, end_offset,
-                                        response_buffer );
-        file_contents.extend_from_slice( file_chunk );
-        start_offset = end_offset;
-        count += 1;
-    }
+    request_file_distributed( active_nodes.clone(), file_name,
+                              file_length, file_contents );
 
     // verify file checksum matches the one in file store
     if checksum != crc32::checksum_ieee( file_contents ) {
