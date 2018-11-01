@@ -42,7 +42,7 @@ fn main() {
             let handle_conn = io::read_to_end( reader, buf )
                 .and_then( move | ( _, buf ) | {
                     /* ERROR MESSAGES */
-                    
+
                     let format_err = Err( format!(
                         "invalid request, \
                          correct format: /filename:(action,arg1,arg2,...)" ) );
@@ -70,7 +70,7 @@ fn main() {
                     };
 
                     /* OPERATION FUNCTIONS */
-                    
+
                     // write file contents (or error) into writer socket
                     // and log info
                     let send_and_log = | oper_result: OperResult | {
@@ -89,7 +89,7 @@ fn main() {
                                     &format!( "{}\n", why ).into_bytes() );
                                 io::write_all( writer, message )
                             },
-                        }  
+                        }
                     };
 
                     macro_rules! unwrap_option {
@@ -142,7 +142,7 @@ fn main() {
 
                                 file.seek( std::io::SeekFrom::Start(
                                     start_offset as u64 ) ).unwrap();
-                                
+
                                 let file_read_oper =
                                     match file.read_exact( &mut file_buf ) {
                                         Ok( _ ) => Ok( () ),
@@ -164,7 +164,7 @@ fn main() {
                                 why ) ),
                         }
                     };
-                    
+
                     let file_length_func = | file_name | {
                         match std::fs::metadata( file_name ) {
                             Ok( m ) => Ok( ( format!( "{}", m.len() ).into_bytes(),
@@ -250,7 +250,7 @@ fn main() {
                     } else {
                         return send_and_log( unrecognized_action_err( action ) );
                     }
-                    
+
                 } )
                 .then( | _ | {
                     Ok( () )

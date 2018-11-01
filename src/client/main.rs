@@ -53,7 +53,7 @@ fn retrieve_root_nodes() -> Vec< Node > {
             Node { ip: node_info[ 0 ].to_string(),
                    port: node_info[ 1 ].to_string() } );
     }
-    
+
     return root_nodes;
 }
 
@@ -64,7 +64,7 @@ fn retrieve_active_nodes( file_name: &str, file_store_map: &yaml::Hash )
     for ( key_file, key_info ) in file_store_map {
         if key_file.as_str().unwrap() == file_name {
             let key_info_hash = key_info.as_hash().unwrap();
-            
+
             // get checksum
             let checksum_str = key_info_hash.get(
                 &Yaml::from_str( "checksum" ) ).unwrap().as_str().unwrap();
@@ -103,7 +103,7 @@ fn perform_request<'a>( request: Request, response_buffer: &'a mut Vec<u8> )
         },
     };
     let request_bytes: &[u8] = request.request_string.as_bytes();
-    
+
     let _ = stream.write( request_bytes );
     stream.shutdown( std::net::Shutdown::Write ).unwrap();
 
@@ -129,7 +129,7 @@ fn perform_request_with_retry<'a>( request_string: &String,
         None => Vec::new(),
     };
     nodes.extend_from_slice( random_backup_nodes_slice );
-    
+
     for node in nodes.iter() {
         let request = Request {
             node: node,
@@ -153,7 +153,7 @@ fn request_length( nodes: Vec< Node >, file_name: &String ) -> u16 {
     let response_buffer = &mut Vec::new();
     let response_option = perform_request_with_retry(
         &format!( "{}:(LENGTH)", file_name ), None, nodes, response_buffer );
-    
+
     match response_option {
         Some( response ) => {
             str::from_utf8( response.message ).unwrap().parse::<u16>().unwrap()
@@ -167,7 +167,7 @@ fn request_whole_file<'a>( nodes: Vec< Node >, file_name: &String,
                            -> &'a [u8] {
     let response_option = perform_request_with_retry(
         &format!( "{}:(READ)", file_name ), None, nodes, response_buffer );
-    
+
     match response_option {
         Some( response ) => {
             response.message
@@ -182,7 +182,7 @@ fn request_file_chunk<'a>( primary_node: &Node, backup_nodes: Vec< Node >,
     let response_option = perform_request_with_retry(
         &format!( "{}:(READ,{},{})", file_name, start_offset, end_offset ),
         Some( primary_node ), backup_nodes, response_buffer );
-    
+
     match response_option {
         Some( response ) => {
             response.message
@@ -234,7 +234,7 @@ fn main() {
     let file_store_string = str::from_utf8( file_store ).unwrap();
     let file_store_yaml = YamlLoader::load_from_str( &file_store_string ).unwrap();
     let file_store_map = file_store_yaml[ 0 ].as_hash().unwrap();
-    
+
     // find nodes that have this file
     let ( checksum, active_nodes ) =
         retrieve_active_nodes( file_name, file_store_map );
