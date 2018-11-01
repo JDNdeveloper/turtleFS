@@ -41,7 +41,7 @@ struct Response<'a> {
 fn retrieve_root_nodes() -> Vec< Node > {
     let mut root_nodes = Vec::new();
 
-    let mut f = File::open( "/usr/local/rustfs/nodes.yaml" ).unwrap();
+    let mut f = File::open( "/usr/local/turtlefs/nodes.yaml" ).unwrap();
     let mut contents = String::new();
     f.read_to_string( &mut contents ).unwrap();
 

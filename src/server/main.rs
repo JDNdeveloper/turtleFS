@@ -32,7 +32,7 @@ fn main() {
             let request_re = Regex::new( r"^(/[^:]+):\(([^()]+)\)$" ).unwrap();
 
             // allocated for the filename
-            let mut file_name: String = "/usr/local/rustfs/store".to_owned();
+            let mut file_name: String = "/usr/local/turtlefs/store".to_owned();
 
             // split socket into reader and writer
             let ( reader, writer ) = socket.split();
