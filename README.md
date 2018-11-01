@@ -15,4 +15,4 @@ turtleFS
 
 ## Description:
 
-A distributed filesystem written in Python that is purely for my own educational purposes, and will most likely be slow...very very slow.
+A distributed filestore written in Rust.
