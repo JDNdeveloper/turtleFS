@@ -8,6 +8,7 @@ use std::net::TcpStream;
 use std::env;
 use std::fmt;
 use std::fs::File;
+use std::path::PathBuf;
 use rand::Rng;
 use std::str;
 use yaml_rust::{Yaml,YamlLoader,yaml};
@@ -38,10 +39,11 @@ struct Response<'a> {
     message: &'a [u8],
 }
 
-fn retrieve_root_nodes() -> Vec< Node > {
+fn retrieve_root_nodes( turtlefs_root: &str ) -> Vec< Node > {
     let mut root_nodes = Vec::new();
 
-    let mut f = File::open( "/usr/local/turtlefs/nodes.yaml" ).unwrap();
+    let nodes_path: PathBuf = [ turtlefs_root, "nodes.yaml" ].iter().collect();
+    let mut f = File::open( nodes_path ).unwrap();
     let mut contents = String::new();
     f.read_to_string( &mut contents ).unwrap();
 
@@ -221,10 +223,11 @@ fn request_file_distributed( nodes: Vec< Node >, file_name: &String,
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let file_name = &args[ 1 ];
+    let turtlefs_root = &args[ 1 ];
+    let file_name = &args[ 2 ];
 
     // retrieve /file_store.yaml
-    let root_nodes = retrieve_root_nodes();
+    let root_nodes = retrieve_root_nodes( turtlefs_root );
     let response_buffer = &mut Vec::new();
     let file_store = request_whole_file( root_nodes.clone(),
                                          &"/file_store.yaml".to_string(),

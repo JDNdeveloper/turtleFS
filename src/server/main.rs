@@ -6,6 +6,7 @@ use std::fs::File;
 use std::path::Path;
 use std::io::Seek;
 use std::env;
+use std::path::PathBuf;
 use tokio::prelude::*;
 use tokio::io;
 use tokio::net::TcpListener;
@@ -15,7 +16,8 @@ type OperResult = Result< ( Vec< u8 >, String ), String >;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let address = args[ 1 ].parse().unwrap();
+    let turtlefs_root = (&args[ 1 ]).clone();
+    let address = args[ 2 ].parse().unwrap();
 
     let listener = TcpListener::bind( &address )
         .expect( "cannot bind TCP listener" );
@@ -25,14 +27,15 @@ fn main() {
     // handle incoming connections
     let server = listener.incoming()
         .map_err( | e | eprintln!( "accept failed = {:?}", e ) )
-        .for_each( | socket | {
+        .for_each( move | socket | {
             let peer_addr = socket.peer_addr().unwrap();
 
             // requests must be in the form: /filename:(action,arg1,arg2,...)
             let request_re = Regex::new( r"^(/[^:]+):\(([^()]+)\)$" ).unwrap();
 
             // allocated for the filename
-            let mut file_name: String = "/usr/local/turtlefs/store".to_owned();
+            let mut file_name = PathBuf::from( turtlefs_root.clone() );
+            file_name.push( "store" );
 
             // split socket into reader and writer
             let ( reader, writer ) = socket.split();
@@ -65,7 +68,7 @@ fn main() {
 
                     let no_info_err = | why, file_name | {
                         Err( format!(
-                            "could not retrieve file metadata for {}: {}",
+                            "could not retrieve file metadata for {:?}: {}",
                             file_name, why ) )
                     };
 
@@ -153,7 +156,7 @@ fn main() {
 
                                 match file_read_oper {
                                     Ok( _ ) => Ok( ( file_buf, format!(
-                                        "sending file contents of {}, \
+                                        "sending file contents of {:?}, \
                                          start offset {}, end offset {}",
                                         file_name, start_offset, end_offset ) ) ),
                                     Err( why ) => Err( why ),
@@ -165,10 +168,10 @@ fn main() {
                         }
                     };
 
-                    let file_length_func = | file_name | {
-                        match std::fs::metadata( file_name ) {
+                    let file_length_func = | file_name: PathBuf | {
+                        match std::fs::metadata( file_name.clone() ) {
                             Ok( m ) => Ok( ( format!( "{}", m.len() ).into_bytes(),
-                                             format!( "sending file length of {}: {}",
+                                             format!( "sending file length of {:?}: {}",
                                                        file_name, m.len() ) ) ),
                             Err( why ) => no_info_err( why, file_name ),
                         }
@@ -181,8 +184,11 @@ fn main() {
                     let captures = unwrap_option!(
                         request_re.captures( request_contents ), format_err );
 
-                    file_name.push_str( unwrap_option!( captures.get( 1 ), format_err ).as_str() );
-                    let file_name: &str = &file_name[ .. ];
+                    let request_file_name = unwrap_option!( captures.get( 1 ),
+                                                            format_err ).as_str();
+                    for path_piece in request_file_name.split( "/" ) {
+                        file_name.push( path_piece );
+                    }
 
                     let actions_vec = unwrap_option!(
                         captures.get( 2 ), format_err )
@@ -200,7 +206,7 @@ fn main() {
                     // we need file length for a couple of different things,
                     // so we go ahead and retrieve that now
                     let file_length = unwrap_result!(
-                        std::fs::metadata( file_name ), no_info_err, file_name )
+                        std::fs::metadata( file_name.clone() ), no_info_err, file_name )
                         .len() as u32;
 
                     if action == "READ" {
@@ -237,7 +243,7 @@ fn main() {
                             return send_and_log(
                                 too_many_args_err( action_args.len(), action ) );
                         }
-                        return send_and_log( file_read_func( file_name,
+                        return send_and_log( file_read_func( &file_name,
                                                              start_offset,
                                                              end_offset ) );
                     } else if action == "LENGTH" {
