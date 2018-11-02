@@ -25,6 +25,8 @@ An example `turtlefs-root` is provided in `src/example_turtlefs_root`, which con
 
 The following sections will walk you through setting up a `turtlefs-root`, and running a server and client.
 
+Make sure to first clone the repo and then run `cargo build` to generate the server and client executables.
+
 ### Setting up `turtlefs-root`
 
 Create an empty directory to use as the `turtlefs-root`.
@@ -68,7 +70,7 @@ When files are requested, the request is logged and outputted by the server. Any
 #### Linux
 
 ```
-Hola! ~/turtleFS $ ./target/debug/server.exe "~/turtleFS/src/example_turtlefs_root" 192.168.0.155:5550
+Hola! ~/turtleFS $ ./target/debug/server "~/turtleFS/src/example_turtlefs_root" 192.168.0.155:5550
 ```
 
 #### Windows
@@ -84,7 +86,7 @@ The client takes two parameters, the `turtlefs-root` and the file path that is b
 #### Linux
 
 ```
-Hola! ~/turtleFS $ ./target/debug/client.exe "~/turtleFS/src/example_turtlefs_root" /hello.txt
+Hola! ~/turtleFS $ ./target/debug/client "~/turtleFS/src/example_turtlefs_root" /hello.txt
 Hello
 World
 ```
