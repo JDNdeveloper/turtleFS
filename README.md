@@ -15,7 +15,7 @@ turtleFS
 
 ## Description:
 
-`turtleFS` is a distributed filestore written in Rust. It currently only supports distributed reads across single/multiple servers, but more functionality is planned. Windows/Linux/Mac are all supported.
+`turtleFS` is a distributed filestore written in Rust. It currently only supports distributed reads across single or multiple servers, but more functionality is planned. Windows/Linux/Mac are all supported.
 
 All metadata and data files are stored within the `turtlefs-root` directory (user configurable). The data files are located in `turtlefs-root/store/`, along with the file manifest `turtlefs-root/store/file_store.yaml` which stores which files are provided by which nodes (a node is an `IP:TCP_PORT` pair). The root nodes are stored in `turtlefs-root/nodes.yaml`, which the client uses to retrieve the file manifest.
 
